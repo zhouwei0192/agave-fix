@@ -4077,12 +4077,7 @@ pub mod rpc_full {
                 for (i, ixs) in ixss.into_iter().enumerate() {
                     let mut ui_ixs = Vec::with_capacity(ixs.len());
                     for ix in ixs {
-                        ui_ixs.push(UiInstruction::Compiled(UiCompiledInstruction {
-                            program_id_index: ix.instruction.program_id_index,
-                            accounts: ix.instruction.accounts,
-                            data: ix.instruction.data,
-                            stack_height: None,
-                        }));
+                        ui_ixs.push(UiInstruction::Compiled(ix.instruction));
                     }
                     v.push(UiInnerInstructions {
                         index: i as u8,

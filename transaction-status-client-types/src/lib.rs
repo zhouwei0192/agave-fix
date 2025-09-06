@@ -464,7 +464,7 @@ impl UiCompiledInstruction {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", untagged)]
 pub enum UiInstruction {
-    Compiled(UiCompiledInstruction),
+    Compiled(CompiledInstruction),
     Parsed(UiParsedInstruction),
 }
 
@@ -515,7 +515,7 @@ impl From<InnerInstructions> for UiInnerInstructions {
                          instruction: ix,
                          stack_height,
                      }| {
-                        UiInstruction::Compiled(UiCompiledInstruction::from(ix, *stack_height))
+                        UiInstruction::Compiled(ix.clone())
                     },
                 )
                 .collect(),
