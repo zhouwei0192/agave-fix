@@ -445,7 +445,7 @@ pub struct UiRawMessage {
 pub struct UiCompiledInstruction {
     pub program_id_index: u8,
     pub accounts: Vec<u8>,
-    pub data: String,
+    pub data: Vec<u8>,
     pub stack_height: Option<u32>,
 }
 
@@ -454,7 +454,7 @@ impl UiCompiledInstruction {
         Self {
             program_id_index: instruction.program_id_index,
             accounts: instruction.accounts.clone(),
-            data: bs58::encode(&instruction.data).into_string(),
+            data: instruction.data.clone(),
             stack_height,
         }
     }

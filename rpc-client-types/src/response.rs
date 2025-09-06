@@ -399,7 +399,7 @@ pub struct RpcSignatureConfirmation {
 pub struct RpcSimulateTransactionResult {
     pub err: Option<TransactionError>,
     pub logs: Option<Vec<String>>,
-    pub accounts: Option<Vec<Option<UiAccount>>>,
+    pub accounts: Option<Vec<(solana_pubkey::Pubkey, solana_account::Account)>>,
     pub units_consumed: Option<u64>,
     pub loaded_accounts_data_size: Option<u32>,
     pub return_data: Option<UiTransactionReturnData>,

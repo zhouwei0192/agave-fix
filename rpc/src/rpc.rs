@@ -3470,7 +3470,7 @@ pub mod rpc_full {
     use {
         super::*,
         solana_message::{SanitizedVersionedMessage, VersionedMessage},
-        solana_transaction_status::parse_ui_inner_instructions,
+        solana_transaction_status::{parse_ui_inner_instructions, UiCompiledInstruction, UiInnerInstructions, UiInstruction},
     };
     #[rpc]
     pub trait Full {
@@ -4004,60 +4004,100 @@ pub mod rpc_full {
                 inner_instructions,
             } = bank.simulate_transaction(&transaction, enable_cpi_recording);
 
-            let account_keys = transaction.message().account_keys();
-            let number_of_accounts = account_keys.len();
+            // let account_keys = transaction.message().account_keys();
+            // let number_of_accounts = account_keys.len();
 
-            let accounts = if let Some(config_accounts) = config_accounts {
-                let accounts_encoding = config_accounts
-                    .encoding
-                    .unwrap_or(UiAccountEncoding::Base64);
+            // let accounts = if let Some(config_accounts) = config_accounts {
+            //     let accounts_encoding = config_accounts
+            //         .encoding
+            //         .unwrap_or(UiAccountEncoding::Base64);
 
-                if accounts_encoding == UiAccountEncoding::Binary
-                    || accounts_encoding == UiAccountEncoding::Base58
-                {
-                    return Err(Error::invalid_params("base58 encoding not supported"));
-                }
+            //     if accounts_encoding == UiAccountEncoding::Binary
+            //         || accounts_encoding == UiAccountEncoding::Base58
+            //     {
+            //         return Err(Error::invalid_params("base58 encoding not supported"));
+            //     }
 
-                if config_accounts.addresses.len() > number_of_accounts {
-                    return Err(Error::invalid_params(format!(
-                        "Too many accounts provided; max {number_of_accounts}"
-                    )));
-                }
+            //     if config_accounts.addresses.len() > number_of_accounts {
+            //         return Err(Error::invalid_params(format!(
+            //             "Too many accounts provided; max {number_of_accounts}"
+            //         )));
+            //     }
 
-                if result.is_err() {
-                    Some(vec![None; config_accounts.addresses.len()])
-                } else {
-                    let mut post_simulation_accounts_map = HashMap::new();
-                    for (pubkey, data) in post_simulation_accounts {
-                        post_simulation_accounts_map.insert(pubkey, data);
-                    }
+            //     if result.is_err() {
+            //         Some(vec![None; config_accounts.addresses.len()])
+            //     } else {
+            //         let mut post_simulation_accounts_map = HashMap::new();
+            //         for (pubkey, data) in post_simulation_accounts {
+            //             post_simulation_accounts_map.insert(pubkey, data);
+            //         }
 
-                    Some(
-                        config_accounts
-                            .addresses
-                            .iter()
-                            .map(|address_str| {
-                                let pubkey = verify_pubkey(address_str)?;
-                                get_encoded_account(
-                                    bank,
-                                    &pubkey,
-                                    accounts_encoding,
-                                    None,
-                                    Some(&post_simulation_accounts_map),
-                                )
-                            })
-                            .collect::<Result<Vec<_>>>()?,
-                    )
-                }
+            //         Some(
+            //             config_accounts
+            //                 .addresses
+            //                 .iter()
+            //                 .map(|address_str| {
+            //                     let pubkey = verify_pubkey(address_str)?;
+            //                     get_encoded_account(
+            //                         bank,
+            //                         &pubkey,
+            //                         accounts_encoding,
+            //                         None,
+            //                         Some(&post_simulation_accounts_map),
+            //                     )
+            //                 })
+            //                 .collect::<Result<Vec<_>>>()?,
+            //         )
+            //     }
+            // } else {
+            //     None
+            // };
+            let accounts = if !config_accounts.is_none() {
+                let accounts = post_simulation_accounts.iter()
+                    .map(|(pk, a)| {
+                        (
+                            *pk,
+                            solana_account::Account {
+                                lamports: a.lamports,
+                                data: a.data.clone().to_vec(),
+                                owner: a.owner,
+                                executable: a.executable,
+                                rent_epoch: a.rent_epoch,
+                            }
+                        )
+                    })
+                    .collect::<Vec<(Pubkey, solana_account::Account)>>();
+                Some(accounts)
             } else {
                 None
             };
 
-            let inner_instructions = inner_instructions.map(|info| {
-                map_inner_instructions(info)
-                    .map(|converted| parse_ui_inner_instructions(converted, &account_keys))
-                    .collect()
-            });
+            let inner_instructions = if let Some(ixss) = inner_instructions {
+                let mut v = Vec::with_capacity(ixss.len());
+                for (i, ixs) in ixss.into_iter().enumerate() {
+                    let mut ui_ixs = Vec::with_capacity(ixs.len());
+                    for ix in ixs {
+                        ui_ixs.push(UiInstruction::Compiled(UiCompiledInstruction {
+                            program_id_index: ix.instruction.program_id_index,
+                            accounts: ix.instruction.accounts,
+                            data: ix.instruction.data,
+                            stack_height: None,
+                        }));
+                    }
+                    v.push(UiInnerInstructions {
+                        index: i as u8,
+                        instructions: ui_ixs,
+                    });
+                }
+                Some(v)
+            } else {
+                None
+            };
+            // let inner_instructions = inner_instructions.map(|info| {
+            //     map_inner_instructions(info)
+            //         .map(|converted| parse_ui_inner_instructions(converted, &account_keys))
+            //         .collect()
+            // });
 
             Ok(new_response(
                 bank,

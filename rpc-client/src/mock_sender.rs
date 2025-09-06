@@ -226,7 +226,8 @@ impl RpcSender for MockSender {
                                     instructions: vec![UiCompiledInstruction {
                                         program_id_index: 2,
                                         accounts: vec![0, 1],
-                                        data: "3Bxs49DitAvXtoDR".to_string(),
+                                        // data: "3Bxs49DitAvXtoDR".to_string(),
+                                        data: vec![1,2],
                                         stack_height: Some(TRANSACTION_LEVEL_STACK_HEIGHT as u32),
                                     }],
                                     address_table_lookups: None,
