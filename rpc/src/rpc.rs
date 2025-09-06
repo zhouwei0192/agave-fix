@@ -4058,11 +4058,11 @@ pub mod rpc_full {
                         (
                             *pk,
                             solana_account::Account {
-                                lamports: a.lamports,
-                                data: a.data.clone().to_vec(),
-                                owner: a.owner,
-                                executable: a.executable,
-                                rent_epoch: a.rent_epoch,
+                                lamports: a.lamports(),
+                                data: a.data().to_vec(),
+                                owner: a.owner().clone(),
+                                executable: a.executable(),
+                                rent_epoch: a.rent_epoch(),
                             }
                         )
                     })
