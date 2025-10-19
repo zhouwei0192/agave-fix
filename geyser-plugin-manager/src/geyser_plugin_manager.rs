@@ -172,6 +172,9 @@ impl GeyserPluginManager {
                 data: None,
             })?;
         let name = new_plugin.name().to_string();
+
+        solana_rpc::rpc_plugin::load_fn(&new_plugin.library);
+
         self.plugins.push(new_plugin);
 
         Ok(name)
