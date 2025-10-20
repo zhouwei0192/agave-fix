@@ -10,6 +10,7 @@ use libloading::{Library, Symbol};
 use solana_account::AccountSharedData;
 use solana_client::rpc_config::RpcContextConfig;
 use solana_commitment_config::CommitmentConfig;
+use solana_message::inner_instruction::InnerInstructions;
 use solana_pubkey::Pubkey;
 use solana_transaction::versioned::VersionedTransaction;
 use solana_transaction_status::TransactionBinaryEncoding;
@@ -62,6 +63,13 @@ pub type GetMultipleAccount = unsafe extern "C" fn(pks: PubkeyArray) -> AccountC
 
 pub type SimulateTransaction = unsafe extern "C" fn(data: *mut u8,data_len: usize, need_account: bool) -> SimulateResultRepr;
 
+pub type SimulateTransactionV2 = unsafe extern "C" fn(
+    data: *mut u8,
+    data_len: usize, 
+    need_account: bool,
+    need_inner_ix: bool
+) -> SimulateResultC;
+
 pub type FreeAccount = extern "C" fn(ptr: *mut AccountCRepr) ;
 pub type FreeErrMsg = extern "C" fn(ptr: *mut u8) ;
 
@@ -79,6 +87,8 @@ pub fn load_fn(lib: &Library) {
         f5(free_account);
         let f6: Symbol<unsafe extern "C" fn(FreeErrMsg)> = lib.get(b"register_free_err_msg").unwrap();
         f6(free_err_msg);
+        let f7: Symbol<unsafe extern "C" fn(SimulateTransactionV2)> = lib.get(b"register_simulate_transaction_v2").unwrap();
+        f7(simulate_transaction_v2);
     }
 }
 
@@ -300,14 +310,162 @@ fn to_account_c_repr(a: AccountSharedData) -> AccountCRepr {
     }
 }
 
-// #[repr(C)]
-// #[derive(Debug)]
-// pub struct SimulateResult {
-//     pub error: String,
-//     pub logs: Vec<String>,
-//     pub units_consumed: u64,
-//     pub post_accounts: Vec<(Pubkey, AccountCRepr)>
-// }
+#[derive(Debug, serde::Serialize)]
+pub struct AccountC {
+    pub data: Vec<u8>,
+    pub owner: Pubkey,
+    pub lamports: u64,
+    pub executable: bool,
+    pub rent_epoch: u64,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct SimulateRes {
+    // pub error: Option<String>,
+    pub logs: Vec<String>,
+    pub units_consumed: u64,
+    pub post_accounts: Option<Vec<(Pubkey, AccountC)>>,
+    pub inner_instructions: Option<Vec<InnerInstructions>>,
+}
+
+
+#[repr(C)]
+pub struct SimulateResultC {
+    error_ptr: *mut u8,
+    error_len: usize,
+    data_ptr: *mut u8,
+    data_len: usize,
+}
+
+
+#[no_mangle]
+pub extern "C" fn simulate_transaction_v2(
+    data: *mut u8,
+    data_len: usize,
+    need_account: bool,
+    need_inner_ix: bool
+) -> SimulateResultC {
+    // 检查 data 指针
+    if data.is_null() || data_len == 0 {
+        let err = "simulate_transaction_v2: data is null or empty".to_string();
+        let (ptr, len) = string_to_leaked_bytes(err);
+        return SimulateResultC {
+            error_ptr: ptr,
+            error_len: len,
+            data_ptr: std::ptr::null_mut(),
+            data_len: 0,
+        };
+    }
+
+    // 安全地将输入 bytes 转换为 String
+    let data_str = match unsafe { std::str::from_utf8(std::slice::from_raw_parts(data, data_len)) } {
+        Ok(s) => s.to_string(),
+        Err(_) => {
+            let err = "simulate_transaction_v2: invalid UTF-8 in data".to_string();
+            let (ptr, len) = string_to_leaked_bytes(err);
+            return SimulateResultC {
+                error_ptr: ptr,
+                error_len: len,
+                data_ptr: std::ptr::null_mut(),
+                data_len: 0,
+            };
+        }
+    };
+
+    // 捕获 panic
+    let result = std::panic::catch_unwind(|| {
+        let (_, mut unsanitized_tx) = decode_and_deserialize::<VersionedTransaction>(
+            data_str,
+            TransactionBinaryEncoding::Base64,
+        )
+        .map_err(|e| format!("simulate_transaction_v2 decode_and_deserialize error: {:?}", e))?;
+
+        let jrp = match JRP.get() {
+            Some(j) => j,
+            None => return Err("simulate_transaction_v2 JRP not initialized".to_string()),
+        };
+        let bank = match jrp.get_bank_with_config(RpcContextConfig {
+            commitment: Some(CommitmentConfig::processed()),
+            min_context_slot: Some(0),
+        }) {
+            Ok(b) => b,
+            Err(e) => return Err(format!("simulate_transaction_v2 jrp.get_bank_with_config: {:?}", e)),
+        };
+        let recent_blockhash = bank.last_blockhash();
+        unsanitized_tx.message.set_recent_blockhash(recent_blockhash);
+
+        let transaction = sanitize_transaction(unsanitized_tx, &*bank, bank.get_reserved_account_keys())
+            .map_err(|e| format!("simulate_transaction_v2 error: {:?}", e))?;
+
+        let r = bank.simulate_transaction(&transaction, need_inner_ix);
+
+        // 账户
+        let post_accounts_vec = if need_account {
+            Some(r.post_simulation_accounts
+                .iter()
+                .map(|(pk, acc)| {
+                    (
+                        *pk,
+                        AccountC {
+                            lamports: acc.lamports,
+                            data: acc.data.to_vec(),
+                            owner: acc.owner,
+                            executable: acc.executable,
+                            rent_epoch: acc.rent_epoch,
+                        },
+                    )
+                })
+                .collect::<Vec<(Pubkey, AccountC)>>())
+        } else {
+            None
+        };
+
+        let (error_ptr, error_len) = match r.result {
+            Ok(_) => (std::ptr::null_mut(), 0),
+            Err(e) => string_to_leaked_bytes(e.to_string()),
+        };
+
+        let r = SimulateRes {
+            // error: todo!(),
+            logs: r.logs,
+            units_consumed: r.units_consumed,
+            post_accounts: post_accounts_vec,
+            inner_instructions: r.inner_instructions,
+        };
+
+        let (data_ptr, data_len) = vecu8_to_leaked_bytes(bincode::serialize(&r).unwrap());
+        // 返回 FFI 结构
+        Ok(SimulateResultC {
+            error_ptr,
+            error_len,
+            data_ptr,
+            data_len,
+        })
+    });
+    match result {
+        Ok(Ok(ffi)) => ffi,
+        Ok(Err(err_msg)) => {
+            let (ptr, len) = string_to_leaked_bytes(err_msg);
+            SimulateResultC {
+                error_ptr: ptr,
+                error_len: len,
+                data_ptr: std::ptr::null_mut(),
+                data_len: 0,
+            }
+        }
+        Err(panic_err) => {
+            let msg = format!("simulate_transaction_v2 panic: {:?}", panic_err);
+            let (ptr, len) = string_to_leaked_bytes(msg);
+            SimulateResultC {
+                error_ptr: ptr,
+                error_len: len,
+                data_ptr: std::ptr::null_mut(),
+                data_len: 0,
+            }
+        }
+    }
+}
+
 
 /// 表示单个日志（长度安全，不依赖 null）
 #[repr(C)]
@@ -354,6 +512,13 @@ fn string_to_leaked_bytes(s: String) -> (*mut u8, usize) {
     let ptr = boxed.as_mut_ptr();
     // 防止释放，所有权移交给调用方
     std::mem::forget(boxed);
+    (ptr, len)
+}
+fn vecu8_to_leaked_bytes(mut v: Vec<u8>) -> (*mut u8, usize) {
+    let len = v.len();
+    let ptr = v.as_mut_ptr();
+    // 防止 Vec 析构释放内存
+    std::mem::forget(v);
     (ptr, len)
 }
 pub fn free_leaked_bytes(ptr: *mut u8, len: usize) {
@@ -453,7 +618,7 @@ pub extern "C" fn simulate_transaction(
 
     // 捕获 panic
     let result = std::panic::catch_unwind(|| {
-        let (_, unsanitized_tx) = decode_and_deserialize::<VersionedTransaction>(
+        let (_, mut unsanitized_tx) = decode_and_deserialize::<VersionedTransaction>(
             data_str,
             TransactionBinaryEncoding::Base64,
         )
@@ -470,6 +635,8 @@ pub extern "C" fn simulate_transaction(
             Ok(b) => b,
             Err(e) => return Err(format!("simulate_transaction jrp.get_bank_with_config: {:?}", e)),
         };
+        let recent_blockhash = bank.last_blockhash();
+        unsanitized_tx.message.set_recent_blockhash(recent_blockhash);
 
         let transaction = sanitize_transaction(unsanitized_tx, &*bank, bank.get_reserved_account_keys())
             .map_err(|e| format!("sanitize_transaction error: {:?}", e))?;
