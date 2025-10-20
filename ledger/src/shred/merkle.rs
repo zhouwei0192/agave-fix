@@ -64,9 +64,9 @@ pub struct ShredData {
 // the Merkle tree. The root of the Merkle tree is signed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ShredCode {
-    common_header: ShredCommonHeader,
-    coding_header: CodingShredHeader,
-    payload: Payload,
+    pub common_header: ShredCommonHeader,
+    pub coding_header: CodingShredHeader,
+    pub payload: Payload,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -83,12 +83,12 @@ impl Shred {
     dispatch!(fn set_chained_merkle_root(&mut self, chained_merkle_root: &Hash) -> Result<(), Error>);
     dispatch!(fn set_signature(&mut self, signature: Signature));
     dispatch!(fn signed_data(&self) -> Result<Hash, Error>);
-    dispatch!(pub(super) fn common_header(&self) -> &ShredCommonHeader);
-    dispatch!(pub(super) fn payload(&self) -> &Payload);
+    dispatch!(pub fn common_header(&self) -> &ShredCommonHeader);
+    dispatch!(pub fn payload(&self) -> &Payload);
     dispatch!(pub(super) fn set_retransmitter_signature(&mut self, signature: &Signature) -> Result<(), Error>);
 
     #[inline]
-    fn fec_set_index(&self) -> u32 {
+    pub fn fec_set_index(&self) -> u32 {
         self.common_header().fec_set_index
     }
 
