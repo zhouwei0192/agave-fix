@@ -230,6 +230,16 @@ impl ShredData {
             None => Err(proof_size),
         }
     }
+
+    pub fn last_in_slot(&self) -> bool {
+        let flags = self.data_header().flags;
+        flags.contains(ShredFlags::LAST_SHRED_IN_SLOT)
+    }
+
+    pub fn data_complete(&self) -> bool {
+        let flags = self.data_header().flags;
+        flags.contains(ShredFlags::DATA_COMPLETE_SHRED)
+    }
 }
 
 impl ShredCode {
