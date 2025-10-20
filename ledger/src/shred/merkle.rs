@@ -51,9 +51,9 @@ const_assert_eq!(ShredData::SIZE_OF_PAYLOAD, 1203);
 // the Merkle tree. The root of the Merkle tree is signed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ShredData {
-    common_header: ShredCommonHeader,
-    data_header: DataShredHeader,
-    payload: Payload,
+    pub common_header: ShredCommonHeader,
+    pub data_header: DataShredHeader,
+    pub payload: Payload,
 }
 
 // Layout: {common, coding} headers | erasure coded shard
@@ -145,11 +145,11 @@ impl Shred {
     dispatch!(pub(super) fn retransmitter_signature(&self) -> Result<Signature, Error>);
     dispatch!(pub(super) fn retransmitter_signature_offset(&self) -> Result<usize, Error>);
 
-    fn index(&self) -> u32 {
+    pub fn index(&self) -> u32 {
         self.common_header().index
     }
 
-    fn shred_type(&self) -> ShredType {
+    pub fn shred_type(&self) -> ShredType {
         ShredType::from(self.common_header().shred_variant)
     }
 }

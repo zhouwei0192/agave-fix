@@ -74,12 +74,12 @@ impl ShredData {
         ))
     }
 
-    pub(super) fn last_in_slot(&self) -> bool {
+    pub fn last_in_slot(&self) -> bool {
         let flags = self.data_header().flags;
         flags.contains(ShredFlags::LAST_SHRED_IN_SLOT)
     }
 
-    pub(super) fn data_complete(&self) -> bool {
+    pub fn data_complete(&self) -> bool {
         let flags = self.data_header().flags;
         flags.contains(ShredFlags::DATA_COMPLETE_SHRED)
     }
