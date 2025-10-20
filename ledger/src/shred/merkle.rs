@@ -1,4 +1,4 @@
-#[cfg(test)]
+// #[cfg(test)]
 use crate::shred::ShredType;
 use {
     crate::{
@@ -136,7 +136,8 @@ impl Shred {
     }
 }
 
-#[cfg(test)]
+// #[cfg(test)]
+#[allow(dead_code)]
 impl Shred {
     dispatch!(fn erasure_shard(&self) -> Result<&[u8], Error>);
     dispatch!(fn proof_size(&self) -> Result<u8, Error>);

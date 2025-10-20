@@ -265,7 +265,7 @@ pub struct DataShredHeader {
 }
 
 /// The coding shred header has FEC information
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize, Hash)]
 pub struct CodingShredHeader {
     pub num_data_shreds: u16,
     pub num_coding_shreds: u16,
