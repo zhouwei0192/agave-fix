@@ -89,13 +89,13 @@ use {
 
 mod common;
 mod legacy;
-mod merkle;
-mod merkle_tree;
+pub mod merkle;
+pub mod merkle_tree;
 mod payload;
 pub mod shred_code;
 mod shred_data;
 mod stats;
-mod traits;
+pub mod traits;
 pub mod wire;
 
 // Alias for shred::wire::* for the old code.
@@ -221,7 +221,7 @@ pub enum ShredType {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Deserialize, Serialize)]
 #[serde(into = "u8", try_from = "u8")]
-enum ShredVariant {
+pub enum ShredVariant {
     LegacyCode, // 0b0101_1010
     LegacyData, // 0b1010_0101
     // proof_size is the number of Merkle proof entries, and is encoded in the
@@ -247,7 +247,7 @@ enum ShredVariant {
 
 /// A common header that is present in data and code shred headers
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
-struct ShredCommonHeader {
+pub struct ShredCommonHeader {
     signature: Signature,
     shred_variant: ShredVariant,
     slot: Slot,
@@ -258,7 +258,7 @@ struct ShredCommonHeader {
 
 /// The data shred header has parent offset and flags
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
-struct DataShredHeader {
+pub struct DataShredHeader {
     parent_offset: u16,
     flags: ShredFlags,
     size: u16, // common shred header + data shred header + data
