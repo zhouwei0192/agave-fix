@@ -7,7 +7,7 @@
 use std::{ffi::CString, sync::Arc};
 use jsonrpc_core::futures::future::join_all;
 use libloading::{Library, Symbol};
-use solana_account::AccountSharedData;
+use solana_account::{AccountSharedData, ReadableAccount};
 use solana_client::rpc_config::RpcContextConfig;
 use solana_commitment_config::CommitmentConfig;
 use solana_message::inner_instruction::InnerInstructions;
@@ -136,7 +136,7 @@ pub extern "C" fn get_account(pk: Pubkey) -> AccountCResult {
         };
         
         // 把 Vec<u8> 的数据转化为 Box<[u8]>，然后把指针分离给 C
-        let mut boxed_slice = a.data.to_vec().into_boxed_slice();
+        let mut boxed_slice = a.data().to_vec().into_boxed_slice();
         let data_len = boxed_slice.len();
         let data_ptr = boxed_slice.as_mut_ptr();
 
@@ -144,15 +144,15 @@ pub extern "C" fn get_account(pk: Pubkey) -> AccountCResult {
         let _ = Box::into_raw(boxed_slice);
 
         let mut owner_bytes = [0u8; 32];
-        owner_bytes.copy_from_slice(a.owner.as_ref()); // 视 Pubkey 的可转方法而定
+        owner_bytes.copy_from_slice(a.owner().as_ref()); // 视 Pubkey 的可转方法而定
 
         Ok(AccountCRepr {
-            lamports: a.lamports,
+            lamports: a.lamports(),
             data_ptr,
             data_len,
             owner: owner_bytes,
-            executable: if a.executable { 1 } else { 0 },
-            rent_epoch: a.rent_epoch,
+            executable: if a.executable() { 1 } else { 0 },
+            rent_epoch: a.rent_epoch(),
         })
     });
     match result {
@@ -293,20 +293,20 @@ pub extern "C" fn get_multiple_account(pk_array: PubkeyArray) -> AccountCArray {
 
 fn to_account_c_repr(a: AccountSharedData) -> AccountCRepr {
     let mut owner_bytes = [0u8; 32];
-    owner_bytes.copy_from_slice(a.owner.as_ref());
+    owner_bytes.copy_from_slice(a.owner().as_ref());
 
-    let mut boxed_data = a.data.to_vec().into_boxed_slice();
+    let mut boxed_data = a.data().to_vec().into_boxed_slice();
     let data_ptr = boxed_data.as_mut_ptr();
     let data_len = boxed_data.len();
     let _ = Box::into_raw(boxed_data);
 
     AccountCRepr {
-        lamports: a.lamports,
+        lamports: a.lamports(),
         data_ptr,
         data_len,
         owner: owner_bytes,
-        executable: if a.executable { 1 } else { 0 },
-        rent_epoch: a.rent_epoch,
+        executable: if a.executable() { 1 } else { 0 },
+        rent_epoch: a.rent_epoch(),
     }
 }
 
@@ -407,11 +407,11 @@ pub extern "C" fn simulate_transaction_v2(
                     (
                         *pk,
                         AccountC {
-                            lamports: acc.lamports,
-                            data: acc.data.to_vec(),
-                            owner: acc.owner,
-                            executable: acc.executable,
-                            rent_epoch: acc.rent_epoch,
+                            lamports: acc.lamports(),
+                            data: acc.data().to_vec(),
+                            owner: *acc.owner(),
+                            executable: acc.executable(),
+                            rent_epoch: acc.rent_epoch(),
                         },
                     )
                 })
@@ -651,17 +651,17 @@ pub extern "C" fn simulate_transaction(
                     (
                         *pk,
                         AccountCRepr {
-                            lamports: acc.lamports,
+                            lamports: acc.lamports(),
                             data_ptr: {
-                                let mut boxed = acc.data.clone().to_vec().into_boxed_slice();
+                                let mut boxed = acc.data().to_vec().into_boxed_slice();
                                 let ptr = boxed.as_mut_ptr();
                                 std::mem::forget(boxed);
                                 ptr
                             },
-                            data_len: acc.data.len(),
-                            owner: acc.owner.to_bytes(),
-                            executable: acc.executable as u8,
-                            rent_epoch: acc.rent_epoch,
+                            data_len: acc.data().len(),
+                            owner: acc.owner().to_bytes(),
+                            executable: acc.executable() as u8,
+                            rent_epoch: acc.rent_epoch(),
                         },
                     )
                 })
