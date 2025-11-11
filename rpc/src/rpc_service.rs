@@ -809,6 +809,15 @@ impl JsonRpcService {
             Arc::clone(&runtime),
         );
 
+        match crate::rpc_plugin::JRP.set(request_processor.clone()) {
+            Ok(_) => {
+                println!("crate::rpc_plugin::JRP.set success");
+            },
+            Err(_) => {
+                panic!("crate::rpc_plugin::JRP.set fail");
+            },
+        }
+
         let _send_transaction_service = Arc::new(SendTransactionService::new_with_client(
             &bank_forks,
             receiver,
