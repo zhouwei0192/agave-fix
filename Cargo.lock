@@ -10072,7 +10072,9 @@ dependencies = [
  "jsonrpc-http-server",
  "jsonrpc-pubsub",
  "libc",
+ "libloading",
  "log",
+ "once_cell",
  "rayon",
  "regex",
  "serde",
@@ -10158,6 +10160,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tokio-util 0.7.16",
+ "tracing",
 ]
 
 [[package]]
